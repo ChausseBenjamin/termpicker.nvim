@@ -17,7 +17,12 @@
 ---@field setup fun(opts?: TermpickerConfig): nil Configure the termpicker plugin
 ---@field pick fun(opts?: TermpickerConfig): nil Open color picker with optional per-call configuration
 ---@field pick_replace_selection fun(selected_text: string, start_row: integer, start_col: integer, end_row: integer, end_col: integer, opts?: TermpickerConfig): nil Replace visual selection with picked color
+---@field termpicker_path fun(): string|nil Get the path to termpicker binary if it exists
+---@field install_termpicker fun(): boolean Install termpicker binary
 local M = {}
+
+-- Import the installer module
+local installer = require('termpicker.installer')
 
 ---@type TermpickerConfig
 local config = {
@@ -49,13 +54,13 @@ end
 ---@return boolean true if the string is a valid color (hex, rgb, hsl, cmyk, oklch, or ansi)
 local function is_color(str)
 	if not str then return false end
-	return (str:match('^#%x%x%x%x%x%x$') ~= nil) or                                      -- hex: #B7416E
-			(str:match('^rgb%(%s*%d+%s*,%s*%d+%s*,%s*%d+%s*%)$') ~= nil) or              -- rgb: rgb(183, 65, 110)
-			(str:match('^hsl%(%s*%d+%s*,%s*%d+%%%s*,%s*%d+%%%s*%)$') ~= nil) or          -- hsl: hsl(337, 48%, 49%)
+	return (str:match('^#%x%x%x%x%x%x$') ~= nil) or                                     -- hex: #B7416E
+			(str:match('^rgb%(%s*%d+%s*,%s*%d+%s*,%s*%d+%s*%)$') ~= nil) or                 -- rgb: rgb(183, 65, 110)
+			(str:match('^hsl%(%s*%d+%s*,%s*%d+%%%s*,%s*%d+%%%s*%)$') ~= nil) or             -- hsl: hsl(337, 48%, 49%)
 			(str:match('^cmyk%(%s*%d+%%%s*,%s*%d+%%%s*,%s*%d+%%%s*,%s*%d+%%%s*%)$') ~= nil) or -- cmyk: cmyk(0%, 64%, 40%, 28%)
-			(str:match('^oklch%(%s*[%d%.]+%%%s*[%d%.]+%s*[%d%.]+%s*%)$') ~= nil) or      -- oklch: oklch(55.2% 0.158 0.10)
-			(str:match('^\\X1B%[38;2;%d+;%d+;%d+m$') ~= nil) or                         -- ANSI foreground: \X1B[38;2;183;65;110m
-			(str:match('^\\X1B%[48;2;%d+;%d+;%d+m$') ~= nil)                            -- ANSI background: \X1B[48;2;183;65;110m
+			(str:match('^oklch%(%s*[%d%.]+%%%s*[%d%.]+%s*[%d%.]+%s*%)$') ~= nil) or         -- oklch: oklch(55.2% 0.158 0.10)
+			(str:match('^\\X1B%[38;2;%d+;%d+;%d+m$') ~= nil) or                             -- ANSI foreground: \X1B[38;2;183;65;110m
+			(str:match('^\\X1B%[48;2;%d+;%d+;%d+m$') ~= nil)                                -- ANSI background: \X1B[48;2;183;65;110m
 end
 
 ---Extract a valid color from text that may contain other content
@@ -63,12 +68,12 @@ end
 ---@return string|nil color The extracted color if found, nil otherwise
 local function extract_color_from_text(text)
 	if not text then return nil end
-	
+
 	-- If the text is already a valid color, return it
 	if is_color(text) then
 		return text
 	end
-	
+
 	-- Look for color patterns within the text
 	return text:match('(#%x%x%x%x%x%x)') or
 			text:match('(rgb%(%s*%d+%s*,%s*%d+%s*,%s*%d+%s*%))') or
@@ -85,8 +90,8 @@ end
 ---@return integer win Window handle
 local function create_float_win(buf)
 	buf = buf or vim.api.nvim_create_buf(false, true)
-	local width = 58
-	local height = 20
+	local width = 59
+	local height = 21 -- tall enough for help + input
 	local opts = {
 		relative = 'editor',
 		width = width,
@@ -100,6 +105,28 @@ local function create_float_win(buf)
 	return buf, win
 end
 
+---Check if termpicker is available and prompt for installation if not
+---@return boolean available True if termpicker is available or user chose to install
+local function ensure_termpicker_available()
+	if installer.termpicker_exists() then
+		return true
+	end
+
+	-- Prompt user for installation
+	local choice = vim.fn.confirm(
+		'Termpicker binary not found. Would you like to install it?',
+		'&Yes\n&No',
+		1
+	)
+
+	if choice == 1 then
+		return installer.install_termpicker()
+	else
+		vim.notify('Termpicker installation cancelled', vim.log.levels.WARN)
+		return false
+	end
+end
+
 ---Launch termpicker and handle color selection
 ---@param initial_color? string Initial color to start with (nil uses config default)
 ---@param callback fun(color: string): nil Function to call with the selected color
@@ -111,7 +138,15 @@ local function pick_color(initial_color, callback, opts)
 	opts = opts or {}
 	local merged_opts = vim.tbl_deep_extend('force', config, opts)
 
-	local args = { 'termpicker', '--oneshot' }
+	-- Get the termpicker binary path
+	local termpicker_binary = installer.termpicker_path()
+	if not termpicker_binary then
+		vim.notify('Termpicker binary not found', vim.log.levels.ERROR)
+		callback('')
+		return
+	end
+
+	local args = { termpicker_binary, '--oneshot' }
 
 	-- Determine initial color with precedence:
 	-- 1. Visual selection (initial_color parameter) - highest precedence (unless overridden)
@@ -211,6 +246,10 @@ end
 ---@param opts? TermpickerConfig Optional per-call configuration
 M.pick_replace_selection = function(selected_text, start_row, start_col, end_row,
 																		end_col, opts)
+	-- Check if termpicker is available before proceeding
+	if not ensure_termpicker_available() then
+		return
+	end
 	opts = opts or {}
 	local initial_color = extract_color_from_text(selected_text)
 
@@ -234,6 +273,10 @@ end
 --- - Normal mode: Uses configured output method (insert at cursor or register)
 ---@param opts? TermpickerConfig Optional per-call configuration that overrides global settings
 M.pick = function(opts)
+	-- Check if termpicker is available before proceeding
+	if not ensure_termpicker_available() then
+		return
+	end
 	local mode = vim.api.nvim_get_mode().mode
 	local original_win = vim.api.nvim_get_current_win()
 	local original_buf = vim.api.nvim_get_current_buf()
@@ -323,6 +366,18 @@ M.pick = function(opts)
 			handle_output(color, merged_opts.output)
 		end
 	end, opts)
+end
+
+---Get the path to the termpicker binary
+---@return string|nil path The path to termpicker binary if it exists
+M.termpicker_path = function()
+	return installer.termpicker_path()
+end
+
+---Install termpicker binary
+---@return boolean success True if installation succeeded
+M.install_termpicker = function()
+	return installer.install_termpicker()
 end
 
 ---@type TermpickerModule
