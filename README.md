@@ -1,7 +1,11 @@
 
-# termpicker.nvim
+<div align="center">
+  <h1>termpicker.nvim</h1>
+</div>
 
-![Demo](assets/demo.gif)
+<div align="center">
+  <img src="assets/demo.gif" width="600" alt="termpicker.nvim Demo"><br>
+</div>
 
 A Neovim plugin that integrates [termpicker][2] - a terminal-based color picker - directly into your editor workflow. Pick colors interactively using RGB, HSL, and CMYK sliders with live preview, then insert them into your code or copy to clipboard.
 
