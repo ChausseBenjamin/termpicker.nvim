@@ -106,6 +106,21 @@ vim.keymap.set(
 
 ### Advanced Usage Examples
 
+#### Use Visual Selection as Preview Text
+
+```lua
+vim.keymap.set('x', '<leader>cp', function()
+  -- Get the visual selection text
+  vim.cmd('normal! y')
+  local selected_text = vim.fn.getreg('"')
+  
+  require('termpicker').pick({
+    preview = { text = selected_text },
+    behaviour = { preserve_selection = true }
+  })
+end, { desc = "Pick color with selection as preview" })
+```
+
 #### Copy to Yank Buffer Instead of Inserting
 
 ```lua
