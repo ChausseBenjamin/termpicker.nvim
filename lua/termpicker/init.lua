@@ -11,7 +11,7 @@
 ---@field output? string|nil Output destination: nil = insert at cursor, string = register name (e.g. '"', '+', '*', 'a')
 ---@field starting_color? string Initial color to start with in hex format (default: "#7F7F7F")
 ---@field preview? TermpickerPreviewConfig Preview/sample text configuration
----@field behavior? TermpickerBehaviorConfig Behavior modification options
+---@field behaviour? TermpickerBehaviorConfig Behavior modification options
 
 ---@class TermpickerModule
 ---@field setup fun(opts?: TermpickerConfig): nil Configure the termpicker plugin
@@ -37,7 +37,7 @@ local config = {
 	},
 
 	-- Behavior options
-	behavior = {
+	behaviour = {
 		prefer_config_color = false, -- If true, per-call starting_color overrides visual selection
 		preserve_selection = false, -- If true, don't replace visual selection, use configured output method instead
 	}
@@ -154,11 +154,11 @@ local function pick_color(initial_color, callback, opts)
 	-- 3. Global starting_color config (config.starting_color)
 	-- 4. No color (termpicker default) - lowest precedence
 	local color_to_use = nil
-	if merged_opts.behavior.prefer_config_color and merged_opts.starting_color and is_color(merged_opts.starting_color) then
+	if merged_opts.behaviour.prefer_config_color and merged_opts.starting_color and is_color(merged_opts.starting_color) then
 		-- Per-call starting_color overrides visual selection when prefer_config_color = true
 		color_to_use = merged_opts.starting_color
 	elseif initial_color and is_color(initial_color) then
-		-- Visual selection takes precedence (default behavior)
+		-- Visual selection takes precedence (default behaviour)
 		color_to_use = initial_color
 	elseif merged_opts.starting_color and is_color(merged_opts.starting_color) then
 		-- Per-call or global config
@@ -224,7 +224,7 @@ end
 local function handle_output(text, output_option)
 	output_option = output_option or config.output
 	if output_option == nil then
-		-- Insert at cursor (default behavior)
+		-- Insert at cursor (default behaviour)
 		insert_at_cursor(text)
 	elseif type(output_option) == "string" then
 		-- Store in specified register
@@ -297,7 +297,7 @@ M.pick = function(opts)
 		vim.api.nvim_feedkeys(
 			vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', false)
 
-		if merged_opts.behavior.preserve_selection then
+		if merged_opts.behaviour.preserve_selection then
 			-- Don't replace selection, treat selected_text as initial color and use configured output
 			local initial_color = extract_color_from_text(selected_text)
 
@@ -317,7 +317,7 @@ M.pick = function(opts)
 			end, opts)
 			return
 		else
-			-- Normal behavior: replace the visual selection
+			-- Normal behaviour: replace the visual selection
 			-- Get selection range using vim.fn.getpos which is more reliable
 			local start_pos = vim.fn.getpos("'<")
 			local end_pos = vim.fn.getpos("'>")
